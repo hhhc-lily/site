@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像文件选择与显示</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        #imageContainer {
+            margin-top: 20px;
+            border: 1px dashed #ccc;
+            padding: 10px;
+            min-height: 200px;
+        }
+        #previewImage {
+            max-width: 100%;
+            max-height: 400px;
+            display: none; /* 初始隐藏，有图片时显示 */
+        }
+        #fileInput {
+            display: none;
+        }
+        .custom-file-upload {
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .custom-file-upload:hover {
+            background-color: #e0e0e0;
+        }
+        .file-info {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>图像文件选择与显示</h1>
+    
+    <label for="fileInput" class="custom-file-upload">
+        选择图像文件
+    </label>
+    <input type="file" id="fileInput" accept="image/*" />
+    
+    <div class="file-info" id="fileInfo">未选择文件</div>
+    
+    <div id="imageContainer">
+        < img id="previewImage" alt="预览图像" />
+        <p id="noImageText">预览图像将显示在这里</p >
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+        const noImageText = document.getElementById('noImageText');
+        const fileInfo = document.getElementById('fileInfo');
+
+        fileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            
+            if (!file) {
+                noImageText.style.display = 'block';
+                previewImage.style.display = 'none';
+                fileInfo.textContent = '未选择文件';
+                return;
+            }
+            
+            // 显示文件信息
+            fileInfo.textContent = `文件名: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+            
+            // 检查是否为图像文件
+            if (!file.type.match('image.*')) {
+                alert('请选择有效的图像文件！');
+                return;
+            }
+            
+            // 创建文件阅读器
+            const reader = new FileReader();
+            
+            reader.onload

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV文件查看器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .file-input-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #fileInput {
+            display: none;
+        }
+        .custom-file-upload {
+            border: 1px solid #3498db;
+            display: inline-block;
+            padding: 8px 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .custom-file-upload:hover {
+            background-color: #2980b9;
+        }
+        .file-info {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        #csvTableContainer {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .no-data {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        .options {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CSV文件查看器</h1>
+    
+    <div class="file-input-container">
+        <label for="fileInput" class="custom-file-upload">
+            选择CSV文件
+        </label>
+        <input type="file" id="fileInput" accept=".csv" />
+        <div class="file-info" id="fileInfo">未选择文件</div>
+        
+        <div class="options">
+            <label>
+                <input type="checkbox" id="headerCheckbox" checked />
+                第一行作为表头
+            </label>
+            <label>
+                分隔符:
+                <select id="delimiterSelect">
+                    <option value="," selected>, (逗号)</option>
+                    <option value=";">; (分号)</option>
+                    <option value="\t">\t (制表符)</option>
+                    <option value="|">| (竖线)</option>
+                </select>
+            </label>
+        </div>
+    </div>
+    
+    <div id="csvTableContainer">
+        <div id="noDataMessage" class="no-data">请选择CSV文件，内容将显示在这里</div>
+        <table id="csvTable" style="display: none;"></table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const csvTable = document.getElementById('csvTable');
+            const noDataMessage = document.getElementById('noDataMessage');
+            const fileInfo = document.getElementById('fileInfo');
+            const headerCheckbox = document.getElementById('headerCheckbox');
+            const delimiterSelect = document.getElementById('delimiterSelect');
+
+            fileInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                
+                if (!file) {
+                    fileInfo.textContent = '未选择文件';
+                    noDataMessage.style.display = 'block';
+                    csvTable.style.display = 'none';
+                    return;
+                }
+                
+                // 显示文件信息
+                fileInfo.textContent = `文件名: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                
+                // 检查是否为CSV文件
+                if (!file.name.match(/\.csv$/i)) {
+                    alert('请选择有效的CSV文件 (.csv)');
+                    return;
+                }
+                
+                // 创建文件阅读器
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const content = e.target.result;
+                        const delimiter = delimiterSelect.value;
+                        const hasHeader = headerCheckbox.checked;
+                        
+                        // 解析CSV内容
+                        const { headers, rows } = parseCSV(content, delimiter, hasHeader);
+                        
+                        // 生成表格
+                        renderTable(headers, rows);
+                        
+                        noDataMessage.style.display = 'none';
+                        csvTable.style.display = 'table';
+                    } catch (error) {
+                        console.error('解析CSV出错:', error);
+                        noDataMessage.innerHTML = `<p style="color:red;">解析CSV文件时出错: ${error.message}</p >`;
+                        noDataMessage.style.display = 'block';
+                        csvTable.style.display = 'none';
+                    }
+                };
+                
+                reader.onerror = function() {
+                    noDataMessage.innerHTML = '<p style="color:red;">读取文件时出错</p >';
+                    noDataMessage.style.display = 'block';
+                    csvTable.style.display = 'none';
+                };
+                
+                // 以文本形式读取文件
+                reader.readAsText(file, 'UTF-8');
+            });
+
+            // 当选项改变时重新解析当前文件
+            headerCheckbox.addEventListener('change', reloadFile);
+            delimiterSelect.addEventListener('change', reloadFile);
+
+            function reloadFile() {
+                if (fileInput.files.length > 0) {
+                    // 触发change事件来重新解析
+                    fileInput.dispatchEvent(new Event('change'));
+                }
+            }
+
+            function parseCSV(content, delimiter = ',', hasHeader = true) {
+                // 处理换行符统一为\n
+                content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                
+                const lines = content.split('\n').filter(line => line.trim() !== '');
+                if (lines.length === 0) {
+                    throw new Error('CSV文件为空');
+                }
+                
+                let headers = [];
+                const rows = [];
+                
+                if (hasHeader) {
+                    // 使用第一行作为表头
+                    headers = lines[0].split(delimiter);
+                    // 处理剩余行
+                    for (let i = 1; i < lines.length; i++) {
+                        rows.push(lines[i].split(delimiter));
+                    }
+                } else {
+                    // 没有表头，自动生成列名(列1, 列2...)
+                    const firstRow = lines[0].split(delimiter);
+                    headers = firstRow.map((_, index) => `列 ${index + 1}`);
+                    // 处理所有行
+                    for (let i = 0; i < lines.length; i++) {
+                        rows.push(lines[i].split(delimiter));
+                    }
+                }
+                
+                return { headers, rows };
+            }
+
+            function renderTable(headers, rows) {
+                // 清空表格
+                csvTable.innerHTML = '';
+                
+                // 创建表头
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                headers.forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header;
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                csvTable.appendChild(thead);
+                
+                // 创建表格内容
+                const tbody = document.createElement('tbody');
+                
+                rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    
+                    row.forEach(cell => {
+                        const td = document.createElement('td');
+                        td.textContent = cell;
+                        tr.appendChild(td);
+                    });
+                    
+                    tbody.appendChild(tr);
+                });
+                
+                csvTable.appendChild(tbody);
+            }
+        });
+    </script>
+</body>
+</html>
